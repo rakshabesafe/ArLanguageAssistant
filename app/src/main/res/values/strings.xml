@@ -1,0 +1,43 @@
+<resources>
+    <string name="app_name">Language Assistant</string>
+
+    <string-array name="languages_array_display_names">
+        <item>English</item>
+        <item>Kannada</item>
+        <item>Telugu</item>
+        <item>Hindi</item>
+        <item>Spanish</item>
+        <item>French</item>
+        <item>German</item>
+    </string-array>
+
+    <!-- ML Kit language codes. Must correspond to the order in languages_array_display_names -->
+    <string-array name="languages_array_codes">
+        <item>en</item>
+        <item>kn</item>
+        <item>te</item>
+        <item>hi</item>
+        <item>es</item>
+        <item>fr</item>
+        <item>de</item>
+    </string-array>
+
+    <!-- For "Display Language" spinner, which might have different options or be a subset -->
+    <string-array name="display_languages_array_display_names">
+        <item>English (Latin Script)</item>
+        <item>Kannada (Kannada Script)</item>
+        <item>Telugu (Telugu Script)</item>
+        <item>Hindi (Devanagari Script)</item>
+    </string-array>
+
+    <!-- Codes for display scripts/targets. This is more conceptual for transliteration.
+         For now, assuming it maps to target language codes for direct display,
+         or a specific script like "en" for Latin script representation. -->
+    <string-array name="display_languages_array_codes">
+        <item>en</item> <!-- To display in English/Latin script -->
+        <item>kn</item> <!-- To display in Kannada script -->
+        <item>te</item> <!-- To display in Telugu script -->
+        <item>hi</item> <!-- To display in Hindi script -->
+    </string-array>
+
+</resources>
