@@ -14,30 +14,27 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.util.Log;
-import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.Toast;
 
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.mlkit.common.model.DownloadConditions;
 import com.google.mlkit.nl.translate.TranslateLanguage;
 import com.google.mlkit.nl.translate.Translation;
 import com.google.mlkit.nl.translate.Translator;
 import com.google.mlkit.nl.translate.TranslatorOptions;
-import com.vuzix.ultralite.sdk.ConnectionListener;
-import com.vuzix.ultralite.sdk.UltraliteSDK;
-import com.vuzix.ultralite.sdk.Layout; // For Vuzix display layouts
-import com.vuzix.ultralite.Constants; // Assuming SCROLL_LAYOUT_ID is here
+//import com.vuzix.ultralite.ConnectionListener;
+import com.vuzix.ultralite.UltraliteSDK;
+import com.vuzix.ultralite.Layout; // For Vuzix display layouts
+import com.vuzix.ultralite.utils.scroll.LiveText;
+//import com.vuzix.ultralite.Constants; // Assuming SCROLL_LAYOUT_ID is here
 // If ScrollUtils is a class with static methods for creating scroll layouts:
 // import com.vuzix.ultralite.utils.scroll.ScrollUtils; 
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Locale;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -122,7 +119,7 @@ public class MainActivity extends AppCompatActivity {
         ultraliteSDK = UltraliteSDK.get(this);
 
         // Observe SDK availability
-        UltraliteSDK.getAvailable().observe(this, available -> {
+        ultraliteSDK.getAvailable().observe(this, available -> {
             isSdkAvailable.setValue(available);
             if (available) {
                 Log.i(TAG, "Ultralite SDK is available.");
@@ -149,8 +146,8 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // Register connection listener
-        ultraliteSDK.registerConnectionListener(connectionListener);
-        if (UltraliteSDK.isAvailable(this)) {
+        //ultraliteSDK.getConnected().registerConnectionListener(connectionListener);
+        if (ultraliteSDK.isAvailable()) {
             isSdkAvailable.setValue(true);
         }
 
@@ -294,7 +291,7 @@ public class MainActivity extends AppCompatActivity {
         Toast.makeText(MainActivity.this, "Recognized: " + recognizedText, Toast.LENGTH_SHORT).show();
 
 
-        translateText(recognizedText, fromLanguageCode, toLanguageCode, translatedText -> {
+        /*translateText(recognizedText, fromLanguageCode, toLanguageCode, translatedText -> {
             Log.i(TAG, "Translated text (" + toLanguageCode + "): " + translatedText);
             Toast.makeText(MainActivity.this, "Translated: " + translatedText, Toast.LENGTH_SHORT).show();
 
@@ -311,8 +308,9 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(MainActivity.this, "Could not prepare text for glasses.", Toast.LENGTH_SHORT).show();
                  }
             });
-        });
+        });*/
     }
+
 
     private void processSpeechResultForAnswer(String recognizedText) {
         String displayLanguageCode = displayLanguageCodes[spinnerDisplayLanguage.getSelectedItemPosition()];
@@ -419,8 +417,8 @@ public class MainActivity extends AppCompatActivity {
             // The actual API might differ (e.g., using ScrollUtils or specific methods).
             // For Z100, direct text scrolling might be `ultraliteSDK.scrollText(text, (int) (speed * 10));`
             // or using a Layout:
-            Layout scrollLayout = new Layout(Constants.LAYOUT_ID_SCROLL); // Replace with actual constant if different
-            scrollLayout.setText(0, text); // Assuming element ID 0 is for the main text
+            //Layout scrollLayout = new Layout(Constants.LAYOUT_ID_SCROLL); // Replace with actual constant if different
+            //scrollLayout.setText(0, text); // Assuming element ID 0 is for the main text
             
             // The Vuzix Z100 SDK might have a different way to set scroll speed.
             // This is a placeholder for how it might be done.
@@ -429,10 +427,20 @@ public class MainActivity extends AppCompatActivity {
             // If `scrollText` exists and is preferred:
             // ultraliteSDK.scrollText(text, (int) (speed * SOME_SCALING_FACTOR_IF_NEEDED));
 
+            final int sliceHeightInPixels = 48;    // The lines will be 48 pixels high, so each line is 1/10th the screen height. This affects the
+            // ranges for all other values below since this configuration now has a maximum of 10 lines.
+            final int sliceWidthInPixels = UltraliteSDK.Canvas.WIDTH; // Use the full width
+            final int startingScreenLocation = 1;  // The lines will appear at line 0, the lowest point on the screen.  (Since above we
+            // configured a total of 10 lines on the screen, this can be (0-9) and we're choosing 1.
+            final int numberLinesShowing = 3;
+
             // If using setLayout:
-            ultraliteSDK.setLayout(scrollLayout); 
+            ultraliteSDK.setLayout(Layout.SCROLL, 0, true, true, 0);
+            LiveText liveTextSender = new LiveText(ultraliteSDK, sliceHeightInPixels, sliceWidthInPixels, startingScreenLocation, numberLinesShowing, null);
             // If setLayout starts scrolling, this is fine. If a separate startScroll is needed:
-            // ultraliteSDK.startScrolling(Constants.LAYOUT_ID_SCROLL); 
+            // ultraliteSDK.startScrolling(Constants.LAYOUT_ID_SCROLL);
+            liveTextSender.sendText(text);
+            //chunkStringsToEngine(liveTextSender, 2000, text);
 
             Log.i(TAG, "Displaying on glasses: '" + text + "' with speed factor: " + speed);
             Toast.makeText(this, "Sending to glasses...", Toast.LENGTH_SHORT).show();
@@ -447,12 +455,28 @@ public class MainActivity extends AppCompatActivity {
         if (Boolean.TRUE.equals(isSdkControlled.getValue())) {
             try {
                 // Assuming a method to clear the current layout or text
-                ultraliteSDK.clearLayout(); // Or specific clear for text/scroll area
+                //ultraliteSDK.clearLayout(); // Or specific clear for text/scroll area
                 Log.i(TAG, "Cleared glasses display.");
                 Toast.makeText(this, "Display cleared.", Toast.LENGTH_SHORT).show();
             } catch (Exception e) {
                 Log.e(TAG, "Error clearing glasses display: " + e.getMessage(), e);
             }
+        }
+    }
+
+    private static void chunkStringsToEngine(/*MainActivity demoActivityViewModel,*/ LiveText liveTextSender, int intervalMs, String[] fullStrings)  {
+        String fullTextToSend = "";
+        for (String eachLine : fullStrings) {
+            // We append lines together to simulate the results of a speech engine. It will give us a partial
+            // result, then update that over and over again, growing and changing the text as it goes.
+            // As long as we use one LiveText class, it will manage this properly. So, for the demo, we
+            // just send a block of text (with no correlation to screen lines) and let the LiveText break
+            // it into lines and show what it needs to.
+            fullTextToSend += eachLine + " ";
+            liveTextSender.sendText(fullTextToSend);
+
+            // We pause as we parse the text array to simulate the speech engine giving us data over time
+            //demoActivityViewModel.pause(intervalMs);
         }
     }
 
@@ -567,12 +591,12 @@ public class MainActivity extends AppCompatActivity {
                 com.google.ai.client.generativeai.type.GenerateContentResponse response = responseFuture.get();
                 ArrayList<String> answers = new ArrayList<>();
                 // New API structure: response.getText() might be null, check candidates.
-                if (response.getCandidatesCount() > 0) {
-                    for (com.google.ai.client.generativeai.type.Candidate candidate : response.getCandidatesList()) {
-                        if (candidate.getContent() != null && candidate.getContent().getPartsCount() > 0) {
-                            for (com.google.ai.client.generativeai.type.Part part : candidate.getContent().getPartsList()) {
-                                if (part.getText() != null && !part.getText().trim().isEmpty()) {
-                                     String rawText = part.getText().trim();
+                if (response.getCandidates()!=null && !response.getCandidates().isEmpty()) {
+                    for (com.google.ai.client.generativeai.type.Candidate candidate : response.getCandidates()) {
+                        if (candidate.getContent() != null && candidate.getContent().getParts() != null && !candidate.getContent().getParts().isEmpty()) {
+                            for (com.google.ai.client.generativeai.type.Part part : candidate.getContent().getParts()) {
+                                if (part.toString() != null && !part.toString().trim().isEmpty()) {
+                                     String rawText = part.toString().trim();
                                      // Simple parsing: split by newline, remove list markers
                                      String[] potentialAnswers = rawText.split("\n");
                                      for(String ans : potentialAnswers) {
@@ -651,10 +675,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void requestSdkControl() {
-        if (Boolean.TRUE.equals(isSdkAvailable.getValue()) && !UltraliteSDK.getControlledByMe(this)) {
+        if (Boolean.TRUE.equals(isSdkAvailable.getValue()) && !ultraliteSDK.getControlledByMe().getValue()) {
             Log.d(TAG, "Requesting SDK control...");
             try {
-                boolean requested = ultraliteSDK.requestControl(REQUEST_CONTROL_TIMEOUT_MS);
+                boolean requested = ultraliteSDK.requestControl();
                 if (requested) {
                     Log.d(TAG, "SDK control request successful. Waiting for onControlGained callback.");
                 } else {
@@ -667,32 +691,12 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "Error requesting control: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 isSdkControlled.setValue(false);
             }
-        } else if (UltraliteSDK.getControlledByMe(this)) {
+        } else if (ultraliteSDK.getControlledByMe().getValue()) {
              Log.d(TAG, "Already have SDK control.");
              isSdkControlled.postValue(true); 
         }
     }
 
-    private final ConnectionListener connectionListener = new ConnectionListener() {
-        @Override
-        public void onControlGained() {
-            Log.i(TAG, "ConnectionListener: Control Gained");
-            isSdkControlled.postValue(true);
-        }
-
-        @Override
-        public void onControlLost() {
-            Log.i(TAG, "ConnectionListener: Control Lost");
-            isSdkControlled.postValue(false);
-        }
-
-        @Override
-        public void onConnectionTimeout() {
-            Log.w(TAG, "ConnectionListener: Connection Timeout");
-            isSdkControlled.postValue(false);
-            Toast.makeText(MainActivity.this, "Control request timed out.", Toast.LENGTH_SHORT).show();
-        }
-    };
 
     private void handleControlGained() {
         Log.d(TAG, "handleControlGained: SDK control acquired.");
@@ -712,11 +716,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (UltraliteSDK.isAvailable(this)) {
+        if (ultraliteSDK.isAvailable()) {
             isSdkAvailable.setValue(true);
-            if (!UltraliteSDK.getControlledByMe(this) && Boolean.TRUE.equals(isSdkAvailable.getValue())) {
+            if (!ultraliteSDK.getControlledByMe().getValue() && Boolean.TRUE.equals(isSdkAvailable.getValue())) {
                 requestSdkControl(); // This will also call initializeGeminiModel onControlGained
-            } else if (UltraliteSDK.getControlledByMe(this)) {
+            } else if (ultraliteSDK.getControlledByMe().getValue()) {
                 isSdkControlled.setValue(true);
                 initializeGeminiModel(); // Initialize if control already held and model not ready
             }
@@ -729,8 +733,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         if (ultraliteSDK != null) {
-            ultraliteSDK.unregisterConnectionListener(connectionListener);
-            if (UltraliteSDK.getControlledByMe(this)) {
+            //ultraliteSDK.unregisterConnectionListener(connectionListener);
+            if (ultraliteSDK.getControlledByMe().getValue()) {
                 Log.d(TAG, "onDestroy: Releasing SDK control.");
                 ultraliteSDK.releaseControl();
             }
