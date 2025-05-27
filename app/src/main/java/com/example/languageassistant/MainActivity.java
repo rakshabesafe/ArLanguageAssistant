@@ -28,12 +28,15 @@ import com.google.mlkit.nl.translate.TranslateLanguage;
 import com.google.mlkit.nl.translate.Translation;
 import com.google.mlkit.nl.translate.Translator;
 import com.google.mlkit.nl.translate.TranslatorOptions;
-import com.vuzix.ultralite.sdk.ConnectionListener;
+import com.vuzix.ultralite.sdk.EventListener; // Updated import
 import com.vuzix.ultralite.sdk.UltraliteSDK;
 import com.vuzix.ultralite.sdk.Layout; // For Vuzix display layouts
 import com.vuzix.ultralite.Constants; // Assuming SCROLL_LAYOUT_ID is here
+import static com.vuzix.ultralite.sdk.LinkStatusListener.LINK_STATUS_DISCONNECTED; // For onLinkStatusChanged
 // If ScrollUtils is a class with static methods for creating scroll layouts:
-// import com.vuzix.ultralite.utils.scroll.ScrollUtils; 
+// import com.vuzix.ultralite.utils.scroll.ScrollUtils;
+import com.google.ai.client.generativeai.type.Content; // For Gemini AI
+import com.google.ai.client.generativeai.type.TextPart; // For Gemini AI
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -148,8 +151,8 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Register connection listener
-        ultraliteSDK.registerConnectionListener(connectionListener);
+        // Register event listener
+        ultraliteSDK.addEventListener(eventListener);
         if (UltraliteSDK.isAvailable(this)) {
             isSdkAvailable.setValue(true);
         }
@@ -504,11 +507,101 @@ public class MainActivity extends AppCompatActivity {
                 });
     }
 
-    // Placeholder for Transliteration
+    // Placeholder for Transliteration with Basic Character Mapping
     private void transliterateForDisplay(String text, String targetScriptLanguageCode, final TranslationCallback callback) {
-        // TODO: Implement proper transliteration here.
-        Log.w(TAG, "Transliteration for display language '" + targetScriptLanguageCode + "' is not yet implemented. Returning original text.");
-        callback.onSuccess(text); // Placeholder: returns original text
+        // TODO: This is a VERY rudimentary placeholder for transliteration.
+        // A proper solution would require a comprehensive transliteration engine, library, or API.
+        // Examples: Google Cloud Translation API (includes transliteration), ICU components, or other third-party libraries.
+        // This basic version only attempts to map a few Kannada characters to Latin script if "en" is the target.
+
+        if (text == null || text.isEmpty()) {
+            Log.w(TAG, "Input text for transliteration is empty. Returning original text.");
+            callback.onSuccess(text);
+            return;
+        }
+
+        // Check if the target display script is English/Latin.
+        // The displayLanguageCodes array in strings.xml uses "en" for "English (Latin Script)".
+        if ("en".equalsIgnoreCase(targetScriptLanguageCode)) {
+            Log.d(TAG, "Attempting basic transliteration for target script: " + targetScriptLanguageCode);
+            StringBuilder transliteratedText = new StringBuilder();
+            for (char c : text.toCharArray()) {
+                switch (c) {
+                    // Simple Kannada vowel and consonant mappings (very incomplete)
+                    case 'ಅ': transliteratedText.append("a"); break;
+                    case 'ಆ': transliteratedText.append("aa"); break;
+                    case 'ಇ': transliteratedText.append("i"); break;
+                    case 'ಈ': transliteratedText.append("ii"); break;
+                    case 'ಉ': transliteratedText.append("u"); break;
+                    case 'ಊ': transliteratedText.append("uu"); break;
+                    
+                    case 'ಕ': transliteratedText.append("ka"); break;
+                    case 'ಖ': transliteratedText.append("kha"); break;
+                    case 'ಗ': transliteratedText.append("ga"); break;
+                    case 'ಘ': transliteratedText.append("gha"); break;
+                    
+                    case 'ಚ': transliteratedText.append("cha"); break;
+                    case 'ಛ': transliteratedText.append("chha"); break;
+                    case 'ಜ': transliteratedText.append("ja"); break;
+                    case 'ಝ': transliteratedText.append("jha"); break;
+
+                    case 'ಟ': transliteratedText.append("ṭa"); break; // ta with dot below
+                    case 'ಠ': transliteratedText.append("ṭha"); break; // tha with dot below
+                    case 'ಡ': transliteratedText.append("ḍa"); break; // da with dot below
+                    case 'ಢ': transliteratedText.append("ḍha"); break; // dha with dot below
+                    case 'ಣ': transliteratedText.append("ṇa"); break; // na with dot below
+                    
+                    case 'ತ': transliteratedText.append("ta"); break;
+                    case 'ಥ': transliteratedText.append("tha"); break;
+                    case 'ದ': transliteratedText.append("da"); break;
+                    case 'ಧ': transliteratedText.append("dha"); break;
+                    case 'ನ': transliteratedText.append("na"); break;
+                    
+                    case 'ಪ': transliteratedText.append("pa"); break;
+                    case 'ಫ': transliteratedText.append("pha"); break;
+                    case 'ಬ': transliteratedText.append("ba"); break;
+                    case 'ಭ': transliteratedText.append("bha"); break;
+                    case 'ಮ': transliteratedText.append("ma"); break;
+                    
+                    case 'ಯ': transliteratedText.append("ya"); break;
+                    case 'ರ': transliteratedText.append("ra"); break;
+                    case 'ಲ': transliteratedText.append("la"); break;
+                    case 'ವ': transliteratedText.append("va"); break;
+                    case 'ಶ': transliteratedText.append("sha"); break;
+                    case 'ಷ': transliteratedText.append("ṣa"); break; // sha with dot below
+                    case 'ಸ': transliteratedText.append("sa"); break;
+                    case 'ಹ': transliteratedText.append("ha"); break;
+                    case 'ಳ': transliteratedText.append("ḷa"); break; // la with dot below
+
+                    // Handling some common Kannada vowel diacritics (matras) - very simplified
+                    // This part is particularly complex and error-prone without a proper engine.
+                    // Example: 'ಕಾ' (ka + aa diacritic) should be "kaa"
+                    // This rudimentary switch won't handle combinations correctly without lookahead/state.
+                    // For instance, if previous char was 'ಕ' and current is 'ಾ', it should form "kaa".
+                    // The current approach will just append the diacritic's sound if mapped.
+                    
+                    // Placeholder for space and other common characters
+                    case ' ': transliteratedText.append(" "); break;
+                    case '.': transliteratedText.append(". "); break;
+                    case ',': transliteratedText.append(", "); break;
+                    
+                    default:
+                        // If character is not in our basic map, append it as is or a placeholder.
+                        // For a real transliterator, unknown characters would be handled more gracefully.
+                        // transliteratedText.append(c); // Option 1: append original
+                        transliteratedText.append("?"); // Option 2: append placeholder for unmapped chars
+                        Log.w(TAG, "Unmapped character in basic transliteration: " + c);
+                        break;
+                }
+            }
+            Log.d(TAG, "Basic transliteration performed. Original: '" + text + "', Transliterated: '" + transliteratedText.toString() + "'");
+            callback.onSuccess(transliteratedText.toString());
+        } else {
+            // If not targeting English/Latin script, or if the logic for other scripts isn't implemented,
+            // return the original text.
+            Log.w(TAG, "Transliteration for display language '" + targetScriptLanguageCode + "' is not implemented or not 'en'. Returning original text.");
+            callback.onSuccess(text);
+        }
     }
 
 
@@ -560,45 +653,53 @@ public class MainActivity extends AppCompatActivity {
         String prompt = "Generate a few likely concise replies to the question: '" + conversationText + "'";
         Log.d(TAG, "Gemini Prompt: " + prompt);
 
-        com.google.common.util.concurrent.ListenableFuture<com.google.ai.client.generativeai.type.GenerateContentResponse> responseFuture = geminiModel.generateContent(prompt);
+        // Updated generateContent call for version 0.9.0
+        // The prompt string needs to be wrapped in a Content object.
+        Content content = new Content.Builder().addPart(new TextPart(prompt)).build();
+        com.google.common.util.concurrent.ListenableFuture<com.google.ai.client.generativeai.type.GenerateContentResponse> responseFuture = geminiModel.generateContent(content);
         
         responseFuture.addListener(() -> {
             try {
                 com.google.ai.client.generativeai.type.GenerateContentResponse response = responseFuture.get();
                 ArrayList<String> answers = new ArrayList<>();
-                // New API structure: response.getText() might be null, check candidates.
-                if (response.getCandidatesCount() > 0) {
-                    for (com.google.ai.client.generativeai.type.Candidate candidate : response.getCandidatesList()) {
-                        if (candidate.getContent() != null && candidate.getContent().getPartsCount() > 0) {
-                            for (com.google.ai.client.generativeai.type.Part part : candidate.getContent().getPartsList()) {
-                                if (part.getText() != null && !part.getText().trim().isEmpty()) {
-                                     String rawText = part.getText().trim();
-                                     // Simple parsing: split by newline, remove list markers
-                                     String[] potentialAnswers = rawText.split("\n");
-                                     for(String ans : potentialAnswers) {
-                                         String cleanedAns = ans.trim().replaceAll("^[*-]\\s*", "");
-                                         if (!cleanedAns.isEmpty()) {
-                                             answers.add(cleanedAns);
-                                         }
-                                     }
+                String responseText = response.getText(); // Option 1: Try direct .text()
+
+                if (responseText != null && !responseText.isEmpty()) {
+                    Log.i(TAG, "Gemini response.text(): " + responseText);
+                    // Simple parsing: split by newline, remove list markers
+                    String[] potentialAnswers = responseText.split("\n");
+                    for (String ans : potentialAnswers) {
+                        String cleanedAns = ans.trim().replaceAll("^[*-]\\s*", "");
+                        if (!cleanedAns.isEmpty()) {
+                            answers.add(cleanedAns);
+                        }
+                    }
+                } else {
+                    // Option 2: Fallback to iterating through candidates if response.text() is null or empty
+                    Log.i(TAG, "response.text() is null or empty, trying candidates.");
+                    if (response.getCandidatesCount() > 0) {
+                        for (com.google.ai.client.generativeai.type.Candidate candidate : response.getCandidatesList()) {
+                            if (candidate.getContent() != null && candidate.getContent().getPartsCount() > 0) {
+                                for (com.google.ai.client.generativeai.type.Part part : candidate.getContent().getPartsList()) {
+                                    if (part.getText() != null && !part.getText().trim().isEmpty()) {
+                                        String rawText = part.getText().trim();
+                                        // Simple parsing: split by newline, remove list markers
+                                        String[] potentialAnswers = rawText.split("\n");
+                                        for (String ans : potentialAnswers) {
+                                            String cleanedAns = ans.trim().replaceAll("^[*-]\\s*", "");
+                                            if (!cleanedAns.isEmpty()) {
+                                                answers.add(cleanedAns);
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-                } else if (response.getText() != null && !response.getText().isEmpty()) { 
-                    // Fallback for older behavior or simple text responses, though less common with new API
-                     String[] potentialAnswers = response.getText().split("\n");
-                     for (String ans : potentialAnswers) {
-                         String cleanedAns = ans.trim().replaceAll("^[*-]\\s*", "");
-                         if (!cleanedAns.isEmpty()) {
-                             answers.add(cleanedAns);
-                         }
-                     }
                 }
 
-
                 if (answers.isEmpty()) {
-                    Log.w(TAG, "Gemini returned no parseable answers from candidates or text. Raw text (if any): " + response.getText());
+                    Log.w(TAG, "Gemini returned no parseable answers from response.text() or candidates. Raw response might be empty or in an unexpected format.");
                 } else {
                     Log.i(TAG, "Gemini Parsed Answers: " + answers);
                 }
@@ -651,7 +752,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void requestSdkControl() {
-        if (Boolean.TRUE.equals(isSdkAvailable.getValue()) && !UltraliteSDK.getControlledByMe(this)) {
+        // Check if ultraliteSDK instance is valid before using it
+        if (ultraliteSDK == null) {
+            Log.e(TAG, "UltraliteSDK instance is null. Cannot request control.");
+            Toast.makeText(this, "SDK not initialized.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (Boolean.TRUE.equals(isSdkAvailable.getValue()) && !ultraliteSDK.isControlledByMe()) {
             Log.d(TAG, "Requesting SDK control...");
             try {
                 boolean requested = ultraliteSDK.requestControl(REQUEST_CONTROL_TIMEOUT_MS);
@@ -667,31 +774,51 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "Error requesting control: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 isSdkControlled.setValue(false);
             }
-        } else if (UltraliteSDK.getControlledByMe(this)) {
+        } else if (ultraliteSDK.isControlledByMe()) {
              Log.d(TAG, "Already have SDK control.");
              isSdkControlled.postValue(true); 
         }
     }
 
-    private final ConnectionListener connectionListener = new ConnectionListener() {
+    private final EventListener eventListener = new EventListener() {
         @Override
         public void onControlGained() {
-            Log.i(TAG, "ConnectionListener: Control Gained");
+            Log.i(TAG, "EventListener: Control Gained");
             isSdkControlled.postValue(true);
         }
 
         @Override
         public void onControlLost() {
-            Log.i(TAG, "ConnectionListener: Control Lost");
+            Log.i(TAG, "EventListener: Control Lost");
             isSdkControlled.postValue(false);
         }
 
         @Override
-        public void onConnectionTimeout() {
-            Log.w(TAG, "ConnectionListener: Connection Timeout");
-            isSdkControlled.postValue(false);
-            Toast.makeText(MainActivity.this, "Control request timed out.", Toast.LENGTH_SHORT).show();
+        public void onConnectionStatusChanged(int status) {
+            Log.d(TAG, "EventListener: onConnectionStatusChanged - Status: " + status);
+            // Example: if (status == ConnectionStatusListener.CONNECTION_STATUS_DISCONNECTED) { ... }
+            // This method can be used for more granular connection status if needed.
         }
+
+        @Override
+        public void onLinkStatusChanged(int status) {
+            Log.d(TAG, "EventListener: onLinkStatusChanged - Status: " + status);
+            if (status == LINK_STATUS_DISCONNECTED) {
+                Log.w(TAG, "EventListener: Link Disconnected (potentially connection timeout or other link loss)");
+                isSdkControlled.postValue(false); // Treat general link disconnection as loss of control for UI
+                // The original onConnectionTimeout Toast:
+                Toast.makeText(MainActivity.this, "Connection to glasses lost or timed out.", Toast.LENGTH_LONG).show();
+            }
+        }
+
+        @Override
+        public void onDisplayOnline(boolean isOnline) {
+            Log.d(TAG, "EventListener: onDisplayOnline - Display is " + (isOnline ? "online" : "offline"));
+            // Can be used to update UI or app behavior based on display readiness
+        }
+
+        // Other EventListener methods can be overridden here if needed:
+        // onBatteryStatusChanged, onTouchpadEvent, onSensorEvent, etc.
     };
 
     private void handleControlGained() {
@@ -712,13 +839,19 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (UltraliteSDK.isAvailable(this)) {
+        // Ensure ultraliteSDK is not null before using it, though it should be initialized in onCreate
+        if (ultraliteSDK == null) {
+            Log.e(TAG, "UltraliteSDK instance is null in onResume. Re-initializing (should not happen).");
+            ultraliteSDK = UltraliteSDK.get(this); // Defensive re-initialization
+        }
+
+        if (UltraliteSDK.isAvailable(this)) { // Static check, context is fine
             isSdkAvailable.setValue(true);
-            if (!UltraliteSDK.getControlledByMe(this) && Boolean.TRUE.equals(isSdkAvailable.getValue())) {
-                requestSdkControl(); // This will also call initializeGeminiModel onControlGained
-            } else if (UltraliteSDK.getControlledByMe(this)) {
+            if (ultraliteSDK != null && !ultraliteSDK.isControlledByMe() && Boolean.TRUE.equals(isSdkAvailable.getValue())) {
+                requestSdkControl(); 
+            } else if (ultraliteSDK != null && ultraliteSDK.isControlledByMe()) {
                 isSdkControlled.setValue(true);
-                initializeGeminiModel(); // Initialize if control already held and model not ready
+                initializeGeminiModel(); 
             }
         } else {
             isSdkAvailable.setValue(false);
@@ -729,8 +862,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         if (ultraliteSDK != null) {
-            ultraliteSDK.unregisterConnectionListener(connectionListener);
-            if (UltraliteSDK.getControlledByMe(this)) {
+            ultraliteSDK.removeEventListener(eventListener); // Use removeEventListener
+            if (ultraliteSDK.isControlledByMe()) { // Check control before releasing
                 Log.d(TAG, "onDestroy: Releasing SDK control.");
                 ultraliteSDK.releaseControl();
             }

@@ -45,7 +45,7 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("com.vuzix:ultralite-sdk-android:1.9")
     implementation("com.google.mlkit:translate:17.0.2") // ML Kit Translate
-    implementation("com.google.ai.client.generativeai:generativeai:0.3.0") // Gemini AI
+    implementation("com.google.ai.client.generativeai:generativeai:0.9.0") // Gemini AI (Updated)
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
