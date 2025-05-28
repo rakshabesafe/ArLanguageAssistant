@@ -427,20 +427,18 @@ public class MainActivity extends AppCompatActivity {
             // If `scrollText` exists and is preferred:
             // ultraliteSDK.scrollText(text, (int) (speed * SOME_SCALING_FACTOR_IF_NEEDED));
 
-            final int sliceHeightInPixels = 48;    // The lines will be 48 pixels high, so each line is 1/10th the screen height. This affects the
-            // ranges for all other values below since this configuration now has a maximum of 10 lines.
-            final int sliceWidthInPixels = UltraliteSDK.Canvas.WIDTH; // Use the full width
-            final int startingScreenLocation = 1;  // The lines will appear at line 0, the lowest point on the screen.  (Since above we
-            // configured a total of 10 lines on the screen, this can be (0-9) and we're choosing 1.
-            final int numberLinesShowing = 3;
+            final static int sliceHeight = 48; // Height of each slice of text (including inter-line padding)
+            final static int fontSize = 35;    // Font size within one slice of text (smaller than the sliceHeight
+            final static int lowestLineShowing = 0;
+            final static int maxLinesShowing = 3;
 
             // If using setLayout:
             ultraliteSDK.setLayout(Layout.SCROLL, 0, true, true, 0);
-            LiveText liveTextSender = new LiveText(ultraliteSDK, sliceHeightInPixels, sliceWidthInPixels, startingScreenLocation, numberLinesShowing, null);
+            UltraliteSDK.ScrollingTextView scrollingTextView = ultralite.getScrollingTextView();
+            scrollingTextView.scrollLayoutConfig(sliceHeightInPixels, lowestLineShowing, maxLinesShowing, (int) (speed * SOME_SCALING_FACTOR_IF_NEEDED), true);
             // If setLayout starts scrolling, this is fine. If a separate startScroll is needed:
             // ultraliteSDK.startScrolling(Constants.LAYOUT_ID_SCROLL);
-            liveTextSender.sendText(text);
-            //chunkStringsToEngine(liveTextSender, 2000, text);
+            chunkStringsToEngine(text,sliceHeight,fontSize)
 
             Log.i(TAG, "Displaying on glasses: '" + text + "' with speed factor: " + speed);
             Toast.makeText(this, "Sending to glasses...", Toast.LENGTH_SHORT).show();
@@ -464,19 +462,31 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private static void chunkStringsToEngine(/*MainActivity demoActivityViewModel,*/ LiveText liveTextSender, int intervalMs, String[] fullStrings)  {
-        String fullTextToSend = "";
-        for (String eachLine : fullStrings) {
-            // We append lines together to simulate the results of a speech engine. It will give us a partial
-            // result, then update that over and over again, growing and changing the text as it goes.
-            // As long as we use one LiveText class, it will manage this properly. So, for the demo, we
-            // just send a block of text (with no correlation to screen lines) and let the LiveText break
-            // it into lines and show what it needs to.
-            fullTextToSend += eachLine + " ";
-            liveTextSender.sendText(fullTextToSend);
-
-            // We pause as we parse the text array to simulate the speech engine giving us data over time
-            //demoActivityViewModel.pause(intervalMs);
+    private static void chunkStringsToEngine(String content, int sliceHeight, int fontSize)  {
+        AckWaiter ackWaiter = new AckWaiter(ultralite);
+        TextToImageSlicer slicer = new TextToImageSlicer(content, sliceHeight, fontSize);
+        int i = 0;
+        // First let's fill the entire screen without waiting, and without scrolling
+        while (slicer.hasMoreSlices() && (i<maxLinesShowing) ) {
+            // We send the line to the explicit index of the screen without scrolling the screen
+            final boolean scrollFirst = false;
+            final int sliceIndexNumber = maxLinesShowing - 1 - i;
+            scrollingTextView.sendScrollImage(slicer.getNextSlice(), sliceIndexNumber, scrollFirst);
+            // we'll wait until the glasses confirm each line has arrived, although this is not
+            // necessary as the underlying queue does this. But it demonstrates this mechanism which
+            // could allow us to synchronize our UI with the glasses UI
+            ackWaiter.waitForAck("Send line of text as image");
+            // When this wait finishes, the glasses have replied that they received the text we just sent
+            i++;
+        }
+        // Continue slicing the rest of that same content with some pauses in between
+        while (slicer.hasMoreSlices()) {
+            demoActivityViewModel.pause(2000);
+            // Now we will just send the bottom slice, and request that the previous bottom be
+            // scrolled up one position before accepting this as the new bottom slice
+            final boolean scrollFirst = true;
+            final int bottomSliceIndex = 0;
+            scrollingTextView.sendScrollImage(slicer.getNextSlice(), bottomSliceIndex, scrollFirst);
         }
     }
 
