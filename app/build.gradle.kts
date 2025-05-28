@@ -42,7 +42,7 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("com.vuzix:ultralite-sdk-android:1.9")
     implementation("com.google.mlkit:translate:17.0.2") // ML Kit Translate
-    implementation("com.google.ai.client.generativeai:generativeai:0.3.0")
+    implementation("com.google.ai.client.generativeai:generativeai:0.9.0") // Gemini AI (Updated)
     implementation("com.google.firebase:firebase-crashlytics-buildtools:3.0.3") // Gemini AI
     implementation("com.google.guava:guava:29.0-android")
     testImplementation("junit:junit:4.13.2")
