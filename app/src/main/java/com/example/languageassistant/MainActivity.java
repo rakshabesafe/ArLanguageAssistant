@@ -20,24 +20,23 @@ import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.Toast;
 
-import com.google.mlkit.common.model.DownloadConditions;
-import com.google.mlkit.nl.translate.TranslateLanguage;
-import com.google.mlkit.nl.translate.Translation;
-import com.google.mlkit.nl.translate.Translator;
-import com.google.mlkit.nl.translate.TranslatorOptions;
-import com.vuzix.ultralite.sdk.EventListener; // Updated import
-// For Vuzix display layouts
-import com.vuzix.ultralite.Constants; // Assuming SCROLL_LAYOUT_ID is here
-import static com.vuzix.ultralite.sdk.LinkStatusListener.LINK_STATUS_DISCONNECTED; // For onLinkStatusChanged
-//import com.vuzix.ultralite.ConnectionListener;
-import com.vuzix.ultralite.UltraliteSDK;
-import com.vuzix.ultralite.Layout; // For Vuzix display layouts
-import com.vuzix.ultralite.utils.scroll.LiveText;
-//import com.vuzix.ultralite.Constants; // Assuming SCROLL_LAYOUT_ID is here
-// If ScrollUtils is a class with static methods for creating scroll layouts:
-// import com.vuzix.ultralite.utils.scroll.ScrollUtils;
-import com.google.ai.client.generativeai.type.Content; // For Gemini AI
-import com.google.ai.client.generativeai.type.TextPart; // For Gemini AI
+// Vuzix SDK related imports will be handled by UltraliteSDKUtils, remove direct ones if no longer used
+// import com.vuzix.ultralite.sdk.EventListener; 
+// import com.vuzix.ultralite.Constants; 
+// import static com.vuzix.ultralite.sdk.LinkStatusListener.LINK_STATUS_DISCONNECTED; 
+// import com.vuzix.ultralite.UltraliteSDK;
+// import com.vuzix.ultralite.Layout; 
+// import com.vuzix.ultralite.utils.scroll.LiveText;
+import com.example.languageassistant.utils.GeminiUtils; // Import the new utility class
+import com.example.languageassistant.utils.UltraliteSDKUtils; // Import the new SDK utility class
+import com.example.languageassistant.utils.TranslationUtils; // Import the new Translation utility class
+
+// Remove direct ML Kit Translation imports if they are no longer used directly in MainActivity
+// import com.google.mlkit.common.model.DownloadConditions;
+// import com.google.mlkit.nl.translate.TranslateLanguage;
+// import com.google.mlkit.nl.translate.Translation;
+// import com.google.mlkit.nl.translate.Translator;
+// import com.google.mlkit.nl.translate.TranslatorOptions;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,10 +45,10 @@ import java.util.Arrays;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "LanguageAssistantApp";
-    private static final int REQUEST_CONTROL_TIMEOUT_MS = 10000; // 10 seconds
+    // REQUEST_CONTROL_TIMEOUT_MS moved to UltraliteSDKUtils
     private static final int REQUEST_RECORD_AUDIO_PERMISSION = 200;
 
-    private UltraliteSDK ultraliteSDK;
+    // private UltraliteSDK ultraliteSDK; // Moved to UltraliteSDKUtils
 
     // UI Elements
     private Spinner spinnerFromLanguage;
@@ -60,9 +59,9 @@ public class MainActivity extends AppCompatActivity {
     private Button buttonStop;
     private Button buttonAnswer;
 
-    // LiveData for SDK status
-    private MutableLiveData<Boolean> isSdkAvailable = new MutableLiveData<>(false);
-    private MutableLiveData<Boolean> isSdkControlled = new MutableLiveData<>(false);
+    // LiveData for SDK status are now in UltraliteSDKUtils
+    // private MutableLiveData<Boolean> isSdkAvailable = new MutableLiveData<>(false);
+    // private MutableLiveData<Boolean> isSdkControlled = new MutableLiveData<>(false);
 
     // Speech Recognition
     private SpeechRecognizer speechRecognizer;
@@ -70,13 +69,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean isListening = false;
     private enum ListeningMode { TRANSLATE, ANSWER_QUESTION }
     private ListeningMode currentListeningMode = ListeningMode.TRANSLATE;
-    
-    // Gemini AI
-    // WARNING: DO NOT SHIP YOUR APP WITH THE API KEY HARDCODED LIKE THIS.
-    // TODO: Secure the API Key using BuildConfig or a server-side solution.
-    private static final String GEMINI_API_KEY = "YOUR_API_KEY_HERE";
-    private com.google.ai.client.generativeai.GenerativeModel geminiModel;
 
+    // Gemini AI related variables moved to GeminiUtils.java
 
     // Language codes - will be populated from string arrays
     private String[] languageDisplayNames;
@@ -121,43 +115,41 @@ public class MainActivity extends AppCompatActivity {
         buttonStop.setEnabled(false); 
         buttonAnswer.setEnabled(false); 
 
-        // Get UltraliteSDK instance
-        ultraliteSDK = UltraliteSDK.get(this);
+        // Initialize UltraliteSDKUtils
+        UltraliteSDKUtils.init(getApplicationContext());
 
-        // Observe SDK availability
-        ultraliteSDK.getAvailable().observe(this, available -> {
-            isSdkAvailable.setValue(available);
+        // Observe SDK availability from UltraliteSDKUtils
+        UltraliteSDKUtils.isSdkAvailable.observe(this, available -> {
+            // This direct call to requestSdkControl might be handled within UltraliteSDKUtils.init
+            // Or if MainActivity needs to react directly:
             if (available) {
-                Log.i(TAG, "Ultralite SDK is available.");
-                requestSdkControl();
+                Log.i(TAG, "Ultralite SDK is available via Utils.");
+                UltraliteSDKUtils.requestSdkControl(); 
             } else {
-                Log.i(TAG, "Ultralite SDK is not available.");
-                isSdkControlled.setValue(false);
+                Log.i(TAG, "Ultralite SDK is not available via Utils.");
             }
         });
 
-        // Observe SDK control status
-        isSdkControlled.observe(this, controlled -> {
+        // Observe SDK control status from UltraliteSDKUtils
+        UltraliteSDKUtils.isSdkControlled.observe(this, controlled -> {
             buttonRun.setEnabled(controlled);
-            buttonAnswer.setEnabled(controlled); // Enable Answer button when SDK is controlled
+            buttonAnswer.setEnabled(controlled);
             if (!controlled) {
                 if (isListening) {
-                    stopListening();
+                    stopListening(); // This local method might need adjustment if it interacts with SDK state
                 }
                 buttonStop.setEnabled(false);
-                handleControlLost();
+                // handleControlLost() is now in UltraliteSDKUtils and called by its EventListener
+                // If MainActivity specific UI updates are needed, they can be triggered here
+                // or by observing a different LiveData from UltraliteSDKUtils.
             } else {
-                handleControlGained();
+                // handleControlGained() is now in UltraliteSDKUtils and called by its EventListener
             }
         });
+        
+        // Register event listener from UltraliteSDKUtils
+        UltraliteSDKUtils.addEventListener();
 
-        // Register event listener
-        ultraliteSDK.addEventListener(eventListener);
-        // Register connection listener
-        //ultraliteSDK.getConnected().registerConnectionListener(connectionListener);
-        if (ultraliteSDK.isAvailable()) {
-            isSdkAvailable.setValue(true);
-        }
 
         // Initialize Speech Recognizer
         initializeSpeechRecognizer();
@@ -248,7 +240,8 @@ public class MainActivity extends AppCompatActivity {
     
     private void resetListeningState() {
         isListening = false;
-        boolean sdkControlled = Boolean.TRUE.equals(isSdkControlled.getValue());
+        // Use isSdkControlled from UltraliteSDKUtils
+        boolean sdkControlled = Boolean.TRUE.equals(UltraliteSDKUtils.isSdkControlled.getValue());
         buttonRun.setEnabled(sdkControlled);
         buttonAnswer.setEnabled(sdkControlled);
         buttonStop.setEnabled(false);
@@ -264,7 +257,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startListening() {
-        if (!isListening && Boolean.TRUE.equals(isSdkControlled.getValue())) {
+        // Use isSdkControlled from UltraliteSDKUtils
+        if (!isListening && Boolean.TRUE.equals(UltraliteSDKUtils.isSdkControlled.getValue())) {
             String fromLanguageTag = languageCodes[spinnerFromLanguage.getSelectedItemPosition()];
             // For "Answer" mode, we assume the question is asked in the "From Language".
             // If AI answers are always in English, this setup is fine.
@@ -277,7 +271,7 @@ public class MainActivity extends AppCompatActivity {
             buttonRun.setEnabled(false);
             buttonAnswer.setEnabled(false);
             buttonStop.setEnabled(true);
-        } else if (!Boolean.TRUE.equals(isSdkControlled.getValue())) {
+        } else if (!Boolean.TRUE.equals(UltraliteSDKUtils.isSdkControlled.getValue())) {
             Toast.makeText(this, "Vuzix glasses not controlled. Cannot start listening.", Toast.LENGTH_SHORT).show();
         }
     }
@@ -299,24 +293,34 @@ public class MainActivity extends AppCompatActivity {
         Toast.makeText(MainActivity.this, "Recognized: " + recognizedText, Toast.LENGTH_SHORT).show();
 
 
-        /*translateText(recognizedText, fromLanguageCode, toLanguageCode, translatedText -> {
-            Log.i(TAG, "Translated text (" + toLanguageCode + "): " + translatedText);
-            Toast.makeText(MainActivity.this, "Translated: " + translatedText, Toast.LENGTH_SHORT).show();
+        /* // Example of using TranslationUtils:
+        TranslationUtils.translateText(this, recognizedText, fromLanguageCode, toLanguageCode, new TranslationUtils.TranslationCallback() {
+            @Override
+            public void onSuccess(String translatedText) {
+                Log.i(TAG, "Translated text (" + toLanguageCode + "): " + translatedText);
+                Toast.makeText(MainActivity.this, "Translated: " + translatedText, Toast.LENGTH_SHORT).show();
 
-            transliterateForDisplay(translatedText, displayLanguageCode, new TranslationCallback() {
-                 @Override
-                 public void onSuccess(String finalDisplayText) {
-                    Log.i(TAG, "Final text for display (" + displayLanguageCode + " script): " + finalDisplayText);
-                    Toast.makeText(MainActivity.this, "Display: " + finalDisplayText, Toast.LENGTH_LONG).show();
-                    displayTextOnGlasses(finalDisplayText);
-                 }
-                 @Override
-                 public void onFailure(Exception e) {
-                    Log.e(TAG, "Transliteration failed for translation: " + e.getMessage());
-                    Toast.makeText(MainActivity.this, "Could not prepare text for glasses.", Toast.LENGTH_SHORT).show();
-                 }
-            });
-        });*/
+                TranslationUtils.transliterateForDisplay(MainActivity.this, translatedText, displayLanguageCode, new TranslationUtils.TranslationCallback() {
+                    @Override
+                    public void onSuccess(String finalDisplayText) {
+                        Log.i(TAG, "Final text for display (" + displayLanguageCode + " script): " + finalDisplayText);
+                        Toast.makeText(MainActivity.this, "Display: " + finalDisplayText, Toast.LENGTH_LONG).show();
+                        UltraliteSDKUtils.displayTextOnGlasses(finalDisplayText, editTextScrollingSpeed);
+                    }
+                    @Override
+                    public void onFailure(Exception e) {
+                        Log.e(TAG, "Transliteration failed for translation: " + e.getMessage());
+                        Toast.makeText(MainActivity.this, "Could not prepare text for glasses.", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+            @Override
+            public void onFailure(Exception e) {
+                Log.e(TAG, "Translation failed: " + e.getMessage());
+                 Toast.makeText(MainActivity.this, "Translation failed.", Toast.LENGTH_SHORT).show();
+            }
+        });
+        */
     }
 
 
@@ -325,442 +329,47 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "Processing for Answer: '" + recognizedText + "', display answers in " + displayLanguageCode + " script.");
         Toast.makeText(MainActivity.this, "Question: " + recognizedText, Toast.LENGTH_SHORT).show();
 
-        if (geminiModel == null) {
-            Toast.makeText(this, "AI Model not initialized. Check API Key.", Toast.LENGTH_LONG).show();
-            Log.e(TAG, "Gemini model is null in processSpeechResultForAnswer. Cannot proceed.");
-            return;
-        }
-
-        // Call Gemini AI
-        getAiAnswers(recognizedText, aiAnswers -> {
-            if (aiAnswers.isEmpty()) {
-                Log.w(TAG, "Gemini returned no answers.");
-                Toast.makeText(MainActivity.this, "No AI answers found.", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            ArrayList<String> transliteratedAnswers = new ArrayList<>();
-            final int totalAnswers = aiAnswers.size();
-            if (totalAnswers == 0) { // Should be caught by isEmpty check, but good for safety
-                 Log.i(TAG, "No answers to transliterate.");
-                 // Potentially show a message or log
-                 return;
-            }
-
-            for (String answer : aiAnswers) {
+        // Call Gemini AI using GeminiUtils
+        GeminiUtils.getAiAnswers(recognizedText, new GeminiUtils.AiAnswerCallback() {
+            @Override
+            public void onAnswerReceived(String answer) {
+                if (answer.isEmpty()) {
+                    Log.w(TAG, "Gemini returned no answer.");
+                    Toast.makeText(MainActivity.this, "No AI answer found.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
                 // AI answers are assumed to be in English. Transliterate them to the selected display script.
-                transliterateForDisplay(answer, displayLanguageCode, new TranslationCallback() {
+                TranslationUtils.transliterateForDisplay(MainActivity.this, answer, displayLanguageCode, new TranslationUtils.TranslationCallback() {
                     @Override
                     public void onSuccess(String transliteratedText) {
-                        synchronized (transliteratedAnswers) {
-                            transliteratedAnswers.add(transliteratedText);
-                            if (transliteratedAnswers.size() == totalAnswers) { // All transliterations are done
-                                Log.i(TAG, "Final transliterated AI answers: " + transliteratedAnswers);
-                                if (!transliteratedAnswers.isEmpty()) {
-                                    // Displaying the first answer for now. Concatenation could be an option.
-                                    displayTextOnGlasses(transliteratedAnswers.get(0)); 
-                                    Toast.makeText(MainActivity.this, "AI Answer (1st on glasses): " + transliteratedAnswers.get(0), Toast.LENGTH_LONG).show();
-                                 } else {
-                                    Toast.makeText(MainActivity.this, "No valid AI answers to display.", Toast.LENGTH_SHORT).show();
-                                }
-                            }
-                        }
+                        Log.i(TAG, "Final transliterated AI answer: " + transliteratedText);
+                        // Call displayTextOnGlasses from UltraliteSDKUtils, passing the EditText
+                        UltraliteSDKUtils.displayTextOnGlasses(transliteratedText, editTextScrollingSpeed);
+                        Toast.makeText(MainActivity.this, "AI Answer (on glasses): " + transliteratedText, Toast.LENGTH_LONG).show();
                     }
                     @Override
                     public void onFailure(Exception e) {
-                         synchronized (transliteratedAnswers) {
-                            Log.e(TAG, "Transliteration failed for an AI answer: " + e.getMessage());
-                            transliteratedAnswers.add("[Transliteration Error]"); 
-                            if (transliteratedAnswers.size() == totalAnswers) { 
-                                Log.i(TAG, "Final (with errors) transliterated AI answers: " + transliteratedAnswers);
-                                 if (!transliteratedAnswers.isEmpty() && !"[Transliteration Error]".equals(transliteratedAnswers.get(0))) {
-                                     displayTextOnGlasses(transliteratedAnswers.get(0));
-                                     Toast.makeText(MainActivity.this, "AI Answer (1st, may have errors, on glasses): " + transliteratedAnswers.get(0), Toast.LENGTH_LONG).show();
-                                 } else {
-                                     Toast.makeText(MainActivity.this, "First AI answer could not be prepared for glasses.", Toast.LENGTH_SHORT).show();
-                                }
-                            }
-                        }
+                        Log.e(TAG, "Transliteration failed for an AI answer: " + e.getMessage());
+                        Toast.makeText(MainActivity.this, "Could not prepare AI answer for glasses.", Toast.LENGTH_SHORT).show();
                     }
                 });
             }
-        }, errorMessage -> {
-            Log.e(TAG, "Gemini AI Error: " + errorMessage);
-            Toast.makeText(MainActivity.this, "AI Error: " + errorMessage, Toast.LENGTH_LONG).show();
+        }, new GeminiUtils.AiErrorCallback() {
+            @Override
+            public void onError(String errorMessage) {
+                Log.e(TAG, "Gemini AI Error: " + errorMessage);
+                Toast.makeText(MainActivity.this, "AI Error: " + errorMessage, Toast.LENGTH_LONG).show();
+            }
         });
     }
 
+    // displayTextOnGlasses, clearGlassesDisplay, chunkStringsToEngine moved to UltraliteSDKUtils
 
-    private void displayTextOnGlasses(String text) {
-        if (!Boolean.TRUE.equals(isSdkControlled.getValue())) {
-            Log.w(TAG, "Cannot display text on glasses: SDK not controlled.");
-            Toast.makeText(this, "Glasses not controlled.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (text == null || text.isEmpty()) {
-            Log.w(TAG, "Cannot display empty text on glasses.");
-            Toast.makeText(this, "No text to display.", Toast.LENGTH_SHORT).show();
-            return;
-        }
+    // translateText, transliterateForDisplay, and TranslationCallback moved to TranslationUtils.java
 
-        try {
-            float speed = 1.0f; // Default speed
-            String speedStr = editTextScrollingSpeed.getText().toString();
-            if (!speedStr.isEmpty()) {
-                try {
-                    speed = Float.parseFloat(speedStr);
-                    if (speed <= 0) {
-                        speed = 1.0f; // Fallback to default if invalid
-                        Toast.makeText(this, "Invalid speed, using default.", Toast.LENGTH_SHORT).show();
-                    }
-                } catch (NumberFormatException e) {
-                    Log.w(TAG, "Invalid speed format, using default: " + speedStr);
-                    Toast.makeText(this, "Invalid speed format, using default.", Toast.LENGTH_SHORT).show();
-                    // speed remains default 1.0f
-                }
-            }
-            
-            // Assuming SCROLL_LAYOUT_ID and a way to set text and speed.
-            // This is a conceptual implementation based on typical Vuzix SDK patterns.
-            // The actual API might differ (e.g., using ScrollUtils or specific methods).
-            // For Z100, direct text scrolling might be `ultraliteSDK.scrollText(text, (int) (speed * 10));`
-            // or using a Layout:
-            //Layout scrollLayout = new Layout(Constants.LAYOUT_ID_SCROLL); // Replace with actual constant if different
-            //scrollLayout.setText(0, text); // Assuming element ID 0 is for the main text
-            
-            // The Vuzix Z100 SDK might have a different way to set scroll speed.
-            // This is a placeholder for how it might be done.
-            // It could be a parameter in scrollLayout.setProperty(propertyId, speed) or similar.
-            // For now, let's assume a direct scrollText method or that speed is implicitly handled by the layout.
-            // If `scrollText` exists and is preferred:
-            // ultraliteSDK.scrollText(text, (int) (speed * SOME_SCALING_FACTOR_IF_NEEDED));
+    // initializeGeminiModel, getAiAnswers, AiAnswerCallback, AiErrorCallback moved to GeminiUtils.java
 
-            final static int sliceHeight = 48; // Height of each slice of text (including inter-line padding)
-            final static int fontSize = 35;    // Font size within one slice of text (smaller than the sliceHeight
-            final static int lowestLineShowing = 0;
-            final static int maxLinesShowing = 3;
-
-            // If using setLayout:
-            ultraliteSDK.setLayout(Layout.SCROLL, 0, true, true, 0);
-            UltraliteSDK.ScrollingTextView scrollingTextView = ultralite.getScrollingTextView();
-            scrollingTextView.scrollLayoutConfig(sliceHeightInPixels, lowestLineShowing, maxLinesShowing, (int) (speed * SOME_SCALING_FACTOR_IF_NEEDED), true);
-            // If setLayout starts scrolling, this is fine. If a separate startScroll is needed:
-            // ultraliteSDK.startScrolling(Constants.LAYOUT_ID_SCROLL);
-            chunkStringsToEngine(text,sliceHeight,fontSize)
-
-            Log.i(TAG, "Displaying on glasses: '" + text + "' with speed factor: " + speed);
-            Toast.makeText(this, "Sending to glasses...", Toast.LENGTH_SHORT).show();
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error displaying text on glasses: " + e.getMessage(), e);
-            Toast.makeText(this, "Error sending to glasses.", Toast.LENGTH_SHORT).show();
-        }
-    }
-    
-    private void clearGlassesDisplay() {
-        if (Boolean.TRUE.equals(isSdkControlled.getValue())) {
-            try {
-                // Assuming a method to clear the current layout or text
-                //ultraliteSDK.clearLayout(); // Or specific clear for text/scroll area
-                Log.i(TAG, "Cleared glasses display.");
-                Toast.makeText(this, "Display cleared.", Toast.LENGTH_SHORT).show();
-            } catch (Exception e) {
-                Log.e(TAG, "Error clearing glasses display: " + e.getMessage(), e);
-            }
-        }
-    }
-
-    private static void chunkStringsToEngine(String content, int sliceHeight, int fontSize)  {
-        AckWaiter ackWaiter = new AckWaiter(ultralite);
-        TextToImageSlicer slicer = new TextToImageSlicer(content, sliceHeight, fontSize);
-        int i = 0;
-        // First let's fill the entire screen without waiting, and without scrolling
-        while (slicer.hasMoreSlices() && (i<maxLinesShowing) ) {
-            // We send the line to the explicit index of the screen without scrolling the screen
-            final boolean scrollFirst = false;
-            final int sliceIndexNumber = maxLinesShowing - 1 - i;
-            scrollingTextView.sendScrollImage(slicer.getNextSlice(), sliceIndexNumber, scrollFirst);
-            // we'll wait until the glasses confirm each line has arrived, although this is not
-            // necessary as the underlying queue does this. But it demonstrates this mechanism which
-            // could allow us to synchronize our UI with the glasses UI
-            ackWaiter.waitForAck("Send line of text as image");
-            // When this wait finishes, the glasses have replied that they received the text we just sent
-            i++;
-        }
-        // Continue slicing the rest of that same content with some pauses in between
-        while (slicer.hasMoreSlices()) {
-            demoActivityViewModel.pause(2000);
-            // Now we will just send the bottom slice, and request that the previous bottom be
-            // scrolled up one position before accepting this as the new bottom slice
-            final boolean scrollFirst = true;
-            final int bottomSliceIndex = 0;
-            scrollingTextView.sendScrollImage(slicer.getNextSlice(), bottomSliceIndex, scrollFirst);
-        }
-    }
-
-
-    private void translateText(String text, String fromLanguage, String toLanguage, final TranslationCallback callback) {
-        if (fromLanguage.equals(toLanguage)) {
-            Log.d(TAG, "Source and target languages are the same. No translation needed.");
-            callback.onSuccess(text);
-            return;
-        }
-
-        if (!Arrays.asList(TranslateLanguage.getAllLanguages()).contains(fromLanguage) ||
-            !Arrays.asList(TranslateLanguage.getAllLanguages()).contains(toLanguage)) {
-            String errorMsg = "Unsupported language for translation: " + fromLanguage + " or " + toLanguage;
-            Log.e(TAG, errorMsg);
-            Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show();
-            callback.onFailure(new Exception(errorMsg));
-            return;
-        }
-
-        TranslatorOptions options =
-                new TranslatorOptions.Builder()
-                        .setSourceLanguage(fromLanguage)
-                        .setTargetLanguage(toLanguage)
-                        .build();
-        final Translator translator = Translation.getClient(options);
-
-        DownloadConditions conditions = new DownloadConditions.Builder()
-                .requireWifi() 
-                .build();
-
-        translator.downloadModelIfNeeded(conditions)
-                .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "Language model for " + fromLanguage + "->" + toLanguage + " downloaded or already available.");
-                    translator.translate(text)
-                            .addOnSuccessListener(callback::onSuccess)
-                            .addOnFailureListener(e -> {
-                                Log.e(TAG, "ML Kit Translation failed: " + e.getMessage());
-                                Toast.makeText(MainActivity.this, "Translation Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                                callback.onFailure(e);
-                            })
-                            .addOnCompleteListener(task -> translator.close()); 
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "ML Kit Model download failed: " + e.getMessage());
-                    Toast.makeText(MainActivity.this, "Model Download Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                    callback.onFailure(e);
-                    translator.close(); 
-                });
-    }
-
-    // Placeholder for Transliteration with Basic Character Mapping
-    private void transliterateForDisplay(String text, String targetScriptLanguageCode, final TranslationCallback callback) {
-        // TODO: This is a VERY rudimentary placeholder for transliteration.
-        // A proper solution would require a comprehensive transliteration engine, library, or API.
-        // Examples: Google Cloud Translation API (includes transliteration), ICU components, or other third-party libraries.
-        // This basic version only attempts to map a few Kannada characters to Latin script if "en" is the target.
-
-        if (text == null || text.isEmpty()) {
-            Log.w(TAG, "Input text for transliteration is empty. Returning original text.");
-            callback.onSuccess(text);
-            return;
-        }
-
-        // Check if the target display script is English/Latin.
-        // The displayLanguageCodes array in strings.xml uses "en" for "English (Latin Script)".
-        if ("en".equalsIgnoreCase(targetScriptLanguageCode)) {
-            Log.d(TAG, "Attempting basic transliteration for target script: " + targetScriptLanguageCode);
-            StringBuilder transliteratedText = new StringBuilder();
-            for (char c : text.toCharArray()) {
-                switch (c) {
-                    // Simple Kannada vowel and consonant mappings (very incomplete)
-                    case 'ಅ': transliteratedText.append("a"); break;
-                    case 'ಆ': transliteratedText.append("aa"); break;
-                    case 'ಇ': transliteratedText.append("i"); break;
-                    case 'ಈ': transliteratedText.append("ii"); break;
-                    case 'ಉ': transliteratedText.append("u"); break;
-                    case 'ಊ': transliteratedText.append("uu"); break;
-                    
-                    case 'ಕ': transliteratedText.append("ka"); break;
-                    case 'ಖ': transliteratedText.append("kha"); break;
-                    case 'ಗ': transliteratedText.append("ga"); break;
-                    case 'ಘ': transliteratedText.append("gha"); break;
-                    
-                    case 'ಚ': transliteratedText.append("cha"); break;
-                    case 'ಛ': transliteratedText.append("chha"); break;
-                    case 'ಜ': transliteratedText.append("ja"); break;
-                    case 'ಝ': transliteratedText.append("jha"); break;
-
-                    case 'ಟ': transliteratedText.append("ṭa"); break; // ta with dot below
-                    case 'ಠ': transliteratedText.append("ṭha"); break; // tha with dot below
-                    case 'ಡ': transliteratedText.append("ḍa"); break; // da with dot below
-                    case 'ಢ': transliteratedText.append("ḍha"); break; // dha with dot below
-                    case 'ಣ': transliteratedText.append("ṇa"); break; // na with dot below
-                    
-                    case 'ತ': transliteratedText.append("ta"); break;
-                    case 'ಥ': transliteratedText.append("tha"); break;
-                    case 'ದ': transliteratedText.append("da"); break;
-                    case 'ಧ': transliteratedText.append("dha"); break;
-                    case 'ನ': transliteratedText.append("na"); break;
-                    
-                    case 'ಪ': transliteratedText.append("pa"); break;
-                    case 'ಫ': transliteratedText.append("pha"); break;
-                    case 'ಬ': transliteratedText.append("ba"); break;
-                    case 'ಭ': transliteratedText.append("bha"); break;
-                    case 'ಮ': transliteratedText.append("ma"); break;
-                    
-                    case 'ಯ': transliteratedText.append("ya"); break;
-                    case 'ರ': transliteratedText.append("ra"); break;
-                    case 'ಲ': transliteratedText.append("la"); break;
-                    case 'ವ': transliteratedText.append("va"); break;
-                    case 'ಶ': transliteratedText.append("sha"); break;
-                    case 'ಷ': transliteratedText.append("ṣa"); break; // sha with dot below
-                    case 'ಸ': transliteratedText.append("sa"); break;
-                    case 'ಹ': transliteratedText.append("ha"); break;
-                    case 'ಳ': transliteratedText.append("ḷa"); break; // la with dot below
-
-                    // Handling some common Kannada vowel diacritics (matras) - very simplified
-                    // This part is particularly complex and error-prone without a proper engine.
-                    // Example: 'ಕಾ' (ka + aa diacritic) should be "kaa"
-                    // This rudimentary switch won't handle combinations correctly without lookahead/state.
-                    // For instance, if previous char was 'ಕ' and current is 'ಾ', it should form "kaa".
-                    // The current approach will just append the diacritic's sound if mapped.
-                    
-                    // Placeholder for space and other common characters
-                    case ' ': transliteratedText.append(" "); break;
-                    case '.': transliteratedText.append(". "); break;
-                    case ',': transliteratedText.append(", "); break;
-                    
-                    default:
-                        // If character is not in our basic map, append it as is or a placeholder.
-                        // For a real transliterator, unknown characters would be handled more gracefully.
-                        // transliteratedText.append(c); // Option 1: append original
-                        transliteratedText.append("?"); // Option 2: append placeholder for unmapped chars
-                        Log.w(TAG, "Unmapped character in basic transliteration: " + c);
-                        break;
-                }
-            }
-            Log.d(TAG, "Basic transliteration performed. Original: '" + text + "', Transliterated: '" + transliteratedText.toString() + "'");
-            callback.onSuccess(transliteratedText.toString());
-        } else {
-            // If not targeting English/Latin script, or if the logic for other scripts isn't implemented,
-            // return the original text.
-            Log.w(TAG, "Transliteration for display language '" + targetScriptLanguageCode + "' is not implemented or not 'en'. Returning original text.");
-            callback.onSuccess(text);
-        }
-    }
-
-
-    interface TranslationCallback {
-        void onSuccess(String translatedText);
-        void onFailure(Exception e);
-    }
-
-    private void initializeGeminiModel() {
-        if (GEMINI_API_KEY.equals("YOUR_API_KEY_HERE")) {
-            Log.e(TAG, "Gemini API Key not set. AI Answer feature will not work.");
-            Toast.makeText(this, "Gemini API Key is not configured.", Toast.LENGTH_LONG).show();
-            geminiModel = null; // Ensure it's null if not configured
-            return;
-        }
-        if (geminiModel == null) { // Initialize only if not already done
-            try {
-                // Using safetySettings and generationConfig as per the new API structure
-                com.google.ai.client.generativeai.type.GenerationConfig generationConfig = new com.google.ai.client.generativeai.type.GenerationConfig.Builder()
-                    // Add any specific generation parameters here if needed
-                    .build(); 
-                
-                // Using an empty list for safetySettings for now, can be configured
-                java.util.List<com.google.ai.client.generativeai.type.SafetySetting> safetySettings = new ArrayList<>();
-                
-                geminiModel = new com.google.ai.client.generativeai.GenerativeModel(
-                    "gemini-pro", // Model name
-                    GEMINI_API_KEY,
-                    generationConfig,
-                    safetySettings
-                );
-                Log.d(TAG, "Gemini Model Initialized");
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to initialize Gemini Model: " + e.getMessage(), e);
-                Toast.makeText(this, "Failed to initialize AI: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                geminiModel = null; // Ensure it's null on failure
-            }
-        }
-    }
-
-    private void getAiAnswers(String conversationText, final AiAnswerCallback callback, final AiErrorCallback errorCallback) {
-        if (geminiModel == null) {
-            String errorMsg = "Gemini model is not initialized. Check API Key or logs for initialization errors.";
-            Log.e(TAG, errorMsg);
-            errorCallback.accept(errorMsg);
-            return;
-        }
-
-        String prompt = "Generate a few likely concise replies to the question: '" + conversationText + "'";
-        Log.d(TAG, "Gemini Prompt: " + prompt);
-
-        // Updated generateContent call for version 0.9.0
-        // The prompt string needs to be wrapped in a Content object.
-        Content content = new Content.Builder().addPart(new TextPart(prompt)).build();
-        com.google.common.util.concurrent.ListenableFuture<com.google.ai.client.generativeai.type.GenerateContentResponse> responseFuture = geminiModel.generateContent(content);
-        
-        responseFuture.addListener(() -> {
-            try {
-                com.google.ai.client.generativeai.type.GenerateContentResponse response = responseFuture.get();
-                ArrayList<String> answers = new ArrayList<>();
-                String responseText = response.getText(); // Option 1: Try direct .text()
-
-                if (responseText != null && !responseText.isEmpty()) {
-                    Log.i(TAG, "Gemini response.text(): " + responseText);
-                    // Simple parsing: split by newline, remove list markers
-                    String[] potentialAnswers = responseText.split("\n");
-                    for (String ans : potentialAnswers) {
-                        String cleanedAns = ans.trim().replaceAll("^[*-]\\s*", "");
-                        if (!cleanedAns.isEmpty()) {
-                            answers.add(cleanedAns);
-                        }
-                    }
-                } else {
-                    // Option 2: Fallback to iterating through candidates if response.text() is null or empty
-                    Log.i(TAG, "response.text() is null or empty, trying candidates.");
-                // New API structure: response.getText() might be null, check candidates.
-                if (response.getCandidates()!=null && !response.getCandidates().isEmpty()) {
-                    for (com.google.ai.client.generativeai.type.Candidate candidate : response.getCandidates()) {
-                        if (candidate.getContent() != null && candidate.getContent().getParts() != null && !candidate.getContent().getParts().isEmpty()) {
-                            for (com.google.ai.client.generativeai.type.Part part : candidate.getContent().getParts()) {
-                                if (part.toString() != null && !part.toString().trim().isEmpty()) {
-                                     String rawText = part.toString().trim();
-                                     // Simple parsing: split by newline, remove list markers
-                                     String[] potentialAnswers = rawText.split("\n");
-                                     for(String ans : potentialAnswers) {
-                                         String cleanedAns = ans.trim().replaceAll("^[*-]\\s*", "");
-                                         if (!cleanedAns.isEmpty()) {
-                                             answers.add(cleanedAns);
-                                         }
-                                     }
-
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (answers.isEmpty()) {
-                    Log.w(TAG, "Gemini returned no parseable answers from response.text() or candidates. Raw response might be empty or in an unexpected format.");
-                } else {
-                    Log.i(TAG, "Gemini Parsed Answers: " + answers);
-                }
-                // Run callback on the main thread
-                runOnUiThread(() -> callback.accept(answers));
-
-            } catch (Exception e) { // Catches InterruptedException and ExecutionException from future.get()
-                Log.e(TAG, "Gemini content generation failed: " + e.getMessage(), e);
-                 // Run callback on the main thread
-                runOnUiThread(() -> errorCallback.accept("AI content generation error: " + e.getMessage()));
-            }
-        }, ContextCompat.getMainExecutor(this)); // Ensure listener runs on main thread for UI updates from callback
-    }
-
-    interface AiAnswerCallback {
-        void accept(ArrayList<String> answers);
-    }
-    interface AiErrorCallback {
-        void accept(String errorMessage);
-    }
-
+    // requestSdkControl, eventListener, handleControlGained, handleControlLost are in UltraliteSDKUtils
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
@@ -791,125 +400,33 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void requestSdkControl() {
-        // Check if ultraliteSDK instance is valid before using it
-        if (ultraliteSDK == null) {
-            Log.e(TAG, "UltraliteSDK instance is null. Cannot request control.");
-            Toast.makeText(this, "SDK not initialized.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        if (Boolean.TRUE.equals(isSdkAvailable.getValue()) && !ultraliteSDK.getControlledByMe().getValue()) {
-            Log.d(TAG, "Requesting SDK control...");
-            try {
-                boolean requested = ultraliteSDK.requestControl();
-                if (requested) {
-                    Log.d(TAG, "SDK control request successful. Waiting for onControlGained callback.");
-                } else {
-                    Log.w(TAG, "SDK control request failed immediately.");
-                    isSdkControlled.setValue(false);
-                    Toast.makeText(this, "Failed to request control. Ensure Vuzix Connect is active.", Toast.LENGTH_LONG).show();
-                }
-            } catch (Exception e) { 
-                Log.e(TAG, "Exception while requesting control: " + e.getMessage(), e);
-                Toast.makeText(this, "Error requesting control: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                isSdkControlled.setValue(false);
-            }
-        } else if (ultraliteSDK.getControlledByMe().getValue()) {
-             Log.d(TAG, "Already have SDK control.");
-             isSdkControlled.postValue(true); 
-        }
-    }
-
-    private final EventListener eventListener = new EventListener() {
-        @Override
-        public void onControlGained() {
-            Log.i(TAG, "EventListener: Control Gained");
-            isSdkControlled.postValue(true);
-        }
-
-        @Override
-        public void onControlLost() {
-            Log.i(TAG, "EventListener: Control Lost");
-            isSdkControlled.postValue(false);
-        }
-
-        @Override
-        public void onConnectionStatusChanged(int status) {
-            Log.d(TAG, "EventListener: onConnectionStatusChanged - Status: " + status);
-            // Example: if (status == ConnectionStatusListener.CONNECTION_STATUS_DISCONNECTED) { ... }
-            // This method can be used for more granular connection status if needed.
-        }
-
-        @Override
-        public void onLinkStatusChanged(int status) {
-            Log.d(TAG, "EventListener: onLinkStatusChanged - Status: " + status);
-            if (status == LINK_STATUS_DISCONNECTED) {
-                Log.w(TAG, "EventListener: Link Disconnected (potentially connection timeout or other link loss)");
-                isSdkControlled.postValue(false); // Treat general link disconnection as loss of control for UI
-                // The original onConnectionTimeout Toast:
-                Toast.makeText(MainActivity.this, "Connection to glasses lost or timed out.", Toast.LENGTH_LONG).show();
-            }
-        }
-
-        @Override
-        public void onDisplayOnline(boolean isOnline) {
-            Log.d(TAG, "EventListener: onDisplayOnline - Display is " + (isOnline ? "online" : "offline"));
-            // Can be used to update UI or app behavior based on display readiness
-        }
-
-        // Other EventListener methods can be overridden here if needed:
-        // onBatteryStatusChanged, onTouchpadEvent, onSensorEvent, etc.
-    };
-
-
-    private void handleControlGained() {
-        Log.d(TAG, "handleControlGained: SDK control acquired.");
-        Toast.makeText(this, "Vuzix Glasses Connected", Toast.LENGTH_SHORT).show();
-        initializeGeminiModel(); // Initialize Gemini when control is gained
-    }
-
-    private void handleControlLost() {
-        Log.d(TAG, "handleControlLost: SDK control lost.");
-        Toast.makeText(this, "Vuzix Glasses Disconnected", Toast.LENGTH_SHORT).show();
-        if (isListening) { 
-            stopListening(); // This will also call resetListeningState
-        }
-        clearGlassesDisplay(); // Also clear glasses display when Stop is pressed
-    }
+    // requestSdkControl, eventListener, handleControlGained, handleControlLost are now in UltraliteSDKUtils
 
     @Override
     protected void onResume() {
         super.onResume();
-        // Ensure ultraliteSDK is not null before using it, though it should be initialized in onCreate
-        if (ultraliteSDK == null) {
-            Log.e(TAG, "UltraliteSDK instance is null in onResume. Re-initializing (should not happen).");
-            ultraliteSDK = UltraliteSDK.get(this); // Defensive re-initialization
-        }
-        if (ultraliteSDK.isAvailable()) {
-            isSdkAvailable.setValue(true);
-            if (!ultraliteSDK.getControlledByMe().getValue() && Boolean.TRUE.equals(isSdkAvailable.getValue())) {
-                requestSdkControl(); // This will also call initializeGeminiModel onControlGained
-            } else if (ultraliteSDK.getControlledByMe().getValue()) {
-                isSdkControlled.setValue(true);
-                initializeGeminiModel(); 
+        // Logic related to SDK availability and control is now managed by UltraliteSDKUtils observers
+        // and its init method. MainActivity's onResume might not need to do much for SDK state.
+        // If there's a need to explicitly check/request control onResume, that can be added:
+        // UltraliteSDKUtils.requestSdkControl(); 
+
+        // Gemini initialization might still be relevant here if it depends on Activity lifecycle
+        // and not just SDK control.
+        if (Boolean.TRUE.equals(UltraliteSDKUtils.isSdkControlled.getValue())) {
+             GeminiUtils.initializeGeminiModel(GeminiUtils.GEMINI_API_KEY);
+             if (GeminiUtils.geminiModel == null) {
+                Toast.makeText(this, "Gemini AI Model not initialized during onResume. Check API Key in GeminiUtils.", Toast.LENGTH_LONG).show();
             }
-        } else {
-            isSdkAvailable.setValue(false);
         }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (ultraliteSDK != null) {
-            ultraliteSDK.removeEventListener(eventListener); // Use removeEventListener
-            //ultraliteSDK.unregisterConnectionListener(connectionListener);
-            if (ultraliteSDK.getControlledByMe().getValue()) {
-                Log.d(TAG, "onDestroy: Releasing SDK control.");
-                ultraliteSDK.releaseControl();
-            }
-        }
+        // Remove event listener and release control using UltraliteSDKUtils
+        UltraliteSDKUtils.removeEventListener();
+        UltraliteSDKUtils.releaseControl();
+
         if (speechRecognizer != null) {
             speechRecognizer.destroy();
             Log.d(TAG, "SpeechRecognizer destroyed.");
